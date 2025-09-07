@@ -54,6 +54,7 @@ pip install git+https://github.com/Gamma7113131/pyanimecli.git
 
    * On **Linux/macOS**: `wget`
    * On **Windows**: `curl` (comes pre-installed on Windows 10+)
+4. **FFmpeg**
 
 ---
 

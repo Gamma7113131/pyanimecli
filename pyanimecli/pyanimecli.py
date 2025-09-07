@@ -8,6 +8,7 @@ import shutil
 import os
 import re
 from urllib.parse import quote
+from tqdm import tqdm
 try:
     from pym3u8downloader import M3U8Downloader
 except ImportError:
@@ -29,7 +30,7 @@ except ImportError:
     print("Error: The 'rich' library is required. Please install it using 'pip install rich'.")
     sys.exit(1)
 
-__version__ = "1.0.8"
+__version__ = "1.0.9"
 PACKAGE_NAME = "pyanimecli"
 
 console = Console()
@@ -144,11 +145,40 @@ def sanitize_filename(name):
     name = re.sub(r'\s+', '_', name)
     return name.strip()
 
+def check_ffmpeg():
+    try:
+        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except FileNotFoundError:
+        return False
+
+def install_ffmpeg_windows():
+    try:
+        console.print("Attempting to install FFmpeg using Chocolatey...")
+        subprocess.run(["choco", "install", "ffmpeg", "-y"], check=True)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        console.print("[yellow]Chocolatey installation failed.[/yellow]")
+        console.print("\nTo install FFmpeg manually:")
+        console.print("1. Visit [link=https://github.com/BtbN/FFmpeg-Builds/releases]https://github.com/BtbN/FFmpeg-Builds/releases[/link]")
+        console.print("2. Download the latest ffmpeg-master-latest-win64-gpl.zip")
+        console.print("3. Extract the contents")
+        console.print("4. Add the bin folder to your system's PATH environment variable")
+        return False
+
 def download_episode(episode_id, download_type, output_path=None):
-    if M3U8Downloader is None:
-        console.print("[bold red]Download Error:[/bold red] The 'pym3u8downloader' library is not installed.")
-        console.print("Please run: [cyan]pip install pym3u8downloader[/cyan]")
-        return
+    if not check_ffmpeg():
+        console.print("[bold red]FFmpeg is required but not found.[/bold red]")
+        if platform.system() == "Windows":
+            response = input("Would you like to attempt automatic installation? (y/n): ").lower()
+            if response == 'y':
+                if not install_ffmpeg_windows():
+                    return
+            else:
+                return
+        else:
+            console.print("Please install FFmpeg using your system's package manager.")
+            return
 
     if not output_path:
         console.print("Auto-generating filename (requires fetching anime info)...")
@@ -187,25 +217,50 @@ def download_episode(episode_id, download_type, output_path=None):
     proxied_stream_url = proxy_url(stream_url)
     
     try:
-        downloader = M3U8Downloader(
-            input_file_path=proxied_stream_url,
-            output_file_path=output_path,
-        )
+        # Get video duration for progress bar
+        probe_cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            proxied_stream_url
+        ]
+        
+        try:
+            duration = float(subprocess.check_output(probe_cmd).decode().strip())
+        except:
+            duration = 0  # If duration can't be determined, progress bar will be indeterminate
+            console.print("[yellow]Could not determine video duration. Progress will be shown without time estimation.[/yellow]")
+
         console.print("Starting video download...")
 
-        try:
-            downloader.download_master_playlist(merge=True, resolution="1280x720")
-        except M3U8DownloaderWarning as warn:
-            console.print("[yellow]Multiple video variants found. Please specify one.[/yellow]")
-            variants = warn.json_data or []
-            for i, variant in enumerate(variants, 1):
-                console.print(
-                    f"{i}. Name: {variant.get('name')}, Bandwidth: {variant.get('bandwidth')}, Resolution: {variant.get('resolution')}"
-                )
-            console.print("[bold red]Please edit the script to specify the desired resolution or variant.[/bold red]")
-            return
+        ffmpeg_cmd = [
+            "ffmpeg",
+            "-y",  # Overwrite output file if it exists
+            "-i", proxied_stream_url,  # Input file
+            "-c", "copy",  # Copy streams without re-encoding
+            "-bsf:a", "aac_adtstoasc",  # Fix audio stream format if needed
+            output_path  # Output file
+        ]
 
-        console.print(f"\n[bold green]Video download complete![/bold green]")
+        process = subprocess.Popen(ffmpeg_cmd, stderr=subprocess.PIPE, universal_newlines=True)
+        time_pattern = re.compile(r'time=(\d+):(\d+):(\d+\.?\d*)')
+
+        with tqdm(total=duration, unit="sec", desc="Downloading", disable=None) as pbar:
+            for line in process.stderr:
+                match = time_pattern.search(line)
+                if match:
+                    h, m, s = match.groups()
+                    seconds = int(h) * 3600 + int(m) * 60 + float(s)
+                    pbar.n = min(seconds, duration)
+                    pbar.refresh()
+
+        process.wait()
+
+        if process.returncode == 0:
+            console.print(f"\n[bold green]Video download complete![/bold green]")
+        else:
+            raise subprocess.CalledProcessError(process.returncode, ffmpeg_cmd)
 
     except Exception as e:
         console.print(f"[bold red]An error occurred during video download:[/bold red] {e}")
