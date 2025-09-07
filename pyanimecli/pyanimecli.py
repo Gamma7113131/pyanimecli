@@ -443,69 +443,160 @@ def get_anime_info(anime_id):
         display_anime_info(data)
 
 def watch_episode(episode_id, watch_type):
-    if not check_executable("vlc"):
-        console.print("[bold red]VLC not found.[/bold red] Please install it from 'https://www.videolan.org/vlc' and ensure it's in your system's PATH.")
-        return
+    STREAM_MODE = "tui"
+    if STREAM_MODE == "vlc":
+        if not check_executable("vlc"):
+            console.print("[bold red]VLC not found.[/bold red] Please install it from 'https://www.videolan.org/vlc' and ensure it's in your system's PATH.")
+            return
 
-    is_windows = platform.system() == "Windows"
-    downloader = "curl" if is_windows else "wget"
+        is_windows = platform.system() == "Windows"
+        downloader = "curl" if is_windows else "wget"
 
-    if not check_executable(downloader):
-        console.print(f"[bold red]{downloader.capitalize()} not found.[/bold red] Please install it and ensure it's in your system's PATH.")
-        return
+        if not check_executable(downloader):
+            console.print(f"[bold red]{downloader.capitalize()} not found.[/bold red] Please install it and ensure it's in your system's PATH.")
+            return
 
-    endpoint = "watch"
-    params = {"episodeId": episode_id, "type": watch_type}
-    data = make_request(endpoint, params=params)
+        endpoint = "watch"
+        params = {"episodeId": episode_id, "type": watch_type}
+        data = make_request(endpoint, params=params)
 
-    if not data or not data.get("sources"):
-        console.print("[bold red]Could not retrieve stream sources.[/bold red]")
-        return
+        if not data or not data.get("sources"):
+            console.print("[bold red]Could not retrieve stream sources.[/bold red]")
+            return
 
-    stream_url = data["sources"][0].get("url")
-    referrer = data["headers"].get("Referer")
-    
-    if not stream_url or not referrer:
-        console.print("[bold red]Incomplete stream data received.[/bold red]")
-        return
-    
-    proxied_stream_url = proxy_url(stream_url)
-    vlc_command = ["vlc", proxied_stream_url, f"--http-referrer={referrer}"]
-    
-    sub_file_path = None
-    if watch_type == "sub" and data.get("subtitles"):
-        sub_url = data["subtitles"][0].get("url")
-        if sub_url:
-            proxied_sub_url = proxy_url(sub_url)
+        stream_url = data["sources"][0].get("url")
+        referrer = data["headers"].get("Referer")
+        
+        if not stream_url or not referrer:
+            console.print("[bold red]Incomplete stream data received.[/bold red]")
+            return
+        
+        proxied_stream_url = proxy_url(stream_url)
+        vlc_command = ["vlc", proxied_stream_url, f"--http-referrer={referrer}"]
+        
+        sub_file_path = None
+        if watch_type == "sub" and data.get("subtitles"):
+            sub_url = data["subtitles"][0].get("url")
+            if sub_url:
+                proxied_sub_url = proxy_url(sub_url)
+                
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".vtt") as tmp_file:
+                    sub_file_path = tmp_file.name
+
+                console.print(f"Downloading subtitles to [cyan]{sub_file_path}[/cyan]...")
+                
+                if is_windows:
+                    download_cmd = ["curl", "-s", "-L", "-o", sub_file_path, proxied_sub_url]
+                else:
+                    download_cmd = ["wget", "-q", "-O", sub_file_path, proxied_sub_url]
+                
+                try:
+                    subprocess.run(download_cmd, check=True)
+                    vlc_command.append(f"--sub-file={sub_file_path}")
+                    console.print("[green]Subtitle download complete.[/green]")
+                except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                    console.print(f"[bold red]Failed to download subtitles:[/bold red] {e}")
+                    sub_file_path = None
+        
+        command_str = ' '.join(f'"{c}"' if ' ' in c else c for c in vlc_command)
+        console.print(f"\n[bold]Executing command:[/bold]\n[yellow]{command_str}[/yellow]\n")
+
+        try:
+            subprocess.run(vlc_command)
+        except Exception as e:
+            console.print(f"[bold red]Failed to launch VLC:[/bold red] {e}")
+        finally:
+            if sub_file_path and os.path.exists(sub_file_path):
+                os.remove(sub_file_path)
+    else:
+        endpoint = "watch"
+        params = {"episodeId": episode_id, "type": watch_type}
+        data = make_request(endpoint, params=params)
+
+        if not data or not data.get("sources"):
+            console.print("[bold red]Could not retrieve stream sources.[/bold red]")
+            return
+
+        stream_url = data["sources"][0].get("url")
+        referrer = data["headers"].get("Referer")
+        
+        if not stream_url or not referrer:
+            console.print("[bold red]Incomplete stream data received.[/bold red]")
+            return
+        
+        proxied_stream_url = proxy_url(stream_url)
+        
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".mp4") as tmp_file:
+            cmd = ["ffmpeg", "-y", "-i", proxied_stream_url, "-c", "copy", tmp_file.name]
+            subprocess.run(cmd)
             
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".vtt") as tmp_file:
-                sub_file_path = tmp_file.name
+            from .tui import render_frame
 
-            console.print(f"Downloading subtitles to [cyan]{sub_file_path}[/cyan]...")
-            
-            if is_windows:
-                download_cmd = ["curl", "-s", "-L", "-o", sub_file_path, proxied_sub_url]
-            else:
-                download_cmd = ["wget", "-q", "-O", sub_file_path, proxied_sub_url]
-            
-            try:
-                subprocess.run(download_cmd, check=True)
-                vlc_command.append(f"--sub-file={sub_file_path}")
-                console.print("[green]Subtitle download complete.[/green]")
-            except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                console.print(f"[bold red]Failed to download subtitles:[/bold red] {e}")
-                sub_file_path = None
-    
-    command_str = ' '.join(f'"{c}"' if ' ' in c else c for c in vlc_command)
-    console.print(f"\n[bold]Executing command:[/bold]\n[yellow]{command_str}[/yellow]\n")
+            import subprocess as sp
+            from moviepy.editor import VideoFileClip
+            from threading import Thread
+            import sys, shutil
+            import cv2
+            import time
 
-    try:
-        subprocess.run(vlc_command)
-    except Exception as e:
-        console.print(f"[bold red]Failed to launch VLC:[/bold red] {e}")
-    finally:
-        if sub_file_path and os.path.exists(sub_file_path):
-            os.remove(sub_file_path)
+            clip = VideoFileClip(tmp_file.name)
+
+            clip = clip.set_fps(2)
+
+            width, height = shutil.get_terminal_size()
+            height -= 1
+            width -= 1
+            size = (width, height * 2)
+
+            clip = clip.resize(size)
+
+            BUFSIZE = 20
+
+            def audio():
+                return sp.run(["ffplay", "-vn", "-nodisp", tmp_file.name], stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+
+            processed = []
+
+            def process():
+                for frame in clip.iter_frames():
+                    f = render_frame(frame)
+                    processed.append(f)
+
+            a_thread = Thread(target = audio  )
+            p_thread = Thread(target = process)
+
+            p_thread.start()
+
+
+
+            fps = clip.fps
+            frame_time = 1.0 / fps
+
+            while len(processed) < BUFSIZE:
+                time.sleep(0.01)
+
+            a_thread.start()
+
+            while True:
+                while len(processed) < BUFSIZE:
+                    if not p_thread.is_alive():
+                        break
+                    time.sleep(0.01)
+
+                while len(processed) >= BUFSIZE:
+                    frame = processed.pop(0)
+                    start = time.time()
+                    sys.stdout.write(frame)
+                    sys.stdout.flush()
+                    elapsed = time.time() - start
+                    sleep_time = max(0, frame_time - elapsed)
+                    time.sleep(sleep_time)
+
+                if not p_thread.is_alive() and not processed:
+                    break
+
+            os.remove(tmp_file.name)
+
 
 def get_recent_episodes(page):
     data = make_request("recent-episodes", params={"page": page})

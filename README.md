@@ -1,15 +1,24 @@
-# pyanimecli
-![PyPI version](https://img.shields.io/pypi/v/pyanimecli.svg)
-![Build](https://github.com/Gamma7113131/pyanimecli/actions/workflows/publish.yml/badge.svg)
-![License](https://img.shields.io/pypi/l/pyanimecli.svg)
-![Downloads](https://img.shields.io/pypi/dm/pyanimecli.svg)
 
 
+<h1 align="center">
+   <img width="500" height="500" alt="pyanimecli" src="https://github.com/user-attachments/assets/1007f6a2-f3c9-4f9c-97d6-2139e2958c75" align="center" />
+   <br>
+   pyanimecli
+</h1>
+
+<h3 align="center">
+<img src="https://img.shields.io/pypi/v/pyanimecli.svg" alt="PyPI version">
+<img src="https://github.com/Gamma7113131/pyanimecli/actions/workflows/publish.yml/badge.svg" alt="Build">
+<img src="https://img.shields.io/pypi/l/pyanimecli.svg" alt="License">
+<img src="https://img.shields.io/pypi/dm/pyanimecli.svg" alt="Downloads">
+</h3>
+
+<h4 align="center">
 A powerful command-line interface for searching, getting info, and watching anime directly from your terminal, powered by the [YumaAPI](https://yumaapi.vercel.app/).
-
-<img width="500" height="500" alt="pyanimecli" src="https://github.com/user-attachments/assets/1007f6a2-f3c9-4f9c-97d6-2139e2958c75" />
+</h4>
 
 ---
+
 
 ## 🚀 Features
 
@@ -51,7 +60,7 @@ pip install git+https://github.com/Gamma7113131/pyanimecli.git
 1. **Python 3.11+**
 2. **VLC Media Player:** Must be installed and accessible from your system's PATH. [Download VLC](https://www.videolan.org/vlc/)
 3. **Required CLI Utilities:**
-
+   * `ffmpeg/ffplay` Must be installed and accessible from your system's PATH.
    * On **Linux/macOS**: `wget`
    * On **Windows**: `curl` (comes pre-installed on Windows 10+)
 4. **FFmpeg**
