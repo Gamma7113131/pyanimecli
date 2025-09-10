@@ -474,28 +474,51 @@ def watch_episode(episode_id, watch_type):
     
     sub_file_path = None
     if watch_type == "sub" and data.get("subtitles"):
-        sub_url = data["subtitles"][0].get("url")
-        if sub_url:
-            proxied_sub_url = proxy_url(sub_url)
-            
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".vtt") as tmp_file:
-                sub_file_path = tmp_file.name
-
-            console.print(f"Downloading subtitles to [cyan]{sub_file_path}[/cyan]...")
-            
-            if is_windows:
-                download_cmd = ["curl", "-s", "-L", "-o", sub_file_path, proxied_sub_url]
-            else:
-                download_cmd = ["wget", "-q", "-O", sub_file_path, proxied_sub_url]
-            
-            try:
-                subprocess.run(download_cmd, check=True)
-                vlc_command.append(f"--sub-file={sub_file_path}")
-                console.print("[green]Subtitle download complete.[/green]")
-            except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                console.print(f"[bold red]Failed to download subtitles:[/bold red] {e}")
-                sub_file_path = None
+        subs = data["subtitles"]
+        chosen_sub = None
     
+        if len(subs) == 1:
+            chosen_sub = subs[0]
+            console.print(f"Only one subtitle available: [cyan]{chosen_sub['lang']}[/cyan]")
+        else:
+            console.print("\nAvailable subtitles:")
+            for idx, sub in enumerate(subs, start=1):
+                console.print(f"[{idx}] {sub['lang']}")
+            
+            while True:
+                try:
+                    choice = int(input("\nEnter the number of the subtitle you want: "))
+                    if 1 <= choice <= len(subs):
+                        chosen_sub = subs[choice - 1]
+                        break
+                    else:
+                        console.print("[bold red]Invalid choice. Try again.[/bold red]")
+                except ValueError:
+                    console.print("[bold red]Please enter a valid number.[/bold red]")
+    
+        if chosen_sub:
+            sub_url = chosen_sub.get("url")
+            if sub_url:
+                proxied_sub_url = proxy_url(sub_url)
+                
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".vtt") as tmp_file:
+                    sub_file_path = tmp_file.name
+    
+                console.print(f"Downloading subtitles ([cyan]{chosen_sub['lang']}[/cyan]) to [cyan]{sub_file_path}[/cyan]...")
+    
+                if is_windows:
+                    download_cmd = ["curl", "-s", "-L", "-o", sub_file_path, proxied_sub_url]
+                else:
+                    download_cmd = ["wget", "-q", "-O", sub_file_path, proxied_sub_url]
+    
+                try:
+                    subprocess.run(download_cmd, check=True)
+                    vlc_command.append(f"--sub-file={sub_file_path}")
+                    console.print("[green]Subtitle download complete.[/green]")
+                except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                    console.print(f"[bold red]Failed to download subtitles:[/bold red] {e}")
+                    sub_file_path = None
+
     command_str = ' '.join(f'"{c}"' if ' ' in c else c for c in vlc_command)
     console.print(f"\n[bold]Executing command:[/bold]\n[yellow]{command_str}[/yellow]\n")
 
