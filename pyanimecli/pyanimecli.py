@@ -30,7 +30,7 @@ except ImportError:
     print("Error: The 'rich' library is required. Please install it using 'pip install rich'.")
     sys.exit(1)
 
-__version__ = "1.0.9"
+__version__ = "1.1"
 PACKAGE_NAME = "pyanimecli"
 
 console = Console()
