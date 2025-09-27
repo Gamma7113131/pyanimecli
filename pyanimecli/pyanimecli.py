@@ -30,13 +30,123 @@ except ImportError:
     print("Error: The 'rich' library is required. Please install it using 'pip install rich'.")
     sys.exit(1)
 
-__version__ = "1.1"
+__version__ = "1.2"
 PACKAGE_NAME = "pyanimecli"
 
 console = Console()
 
+
 BASE_URL = "https://yumaapi.vercel.app"
 PROXY_URL = "https://gammam3u8proxy-fxsb.vercel.app/cors?url="
+
+TIMEZONES = [
+    "UTC", "GMT", "BST", "IST", "EST", "EDT", "CST", "CDT",
+    "MST", "MDT", "PST", "PDT", "AKST", "AKDT", "HST",
+    "AEST", "AEDT", "ACST", "ACDT", "AWST", "JST", "KST",
+    "CET", "CEST", "EET", "EEST", "WET", "WEST", "MSK", "MSD", "AST", "ADT", "NST", "NDT"
+]
+DEFAULT_TZ = "BST"
+def display_next_ep(data):
+    if not data or not data.get("found"):
+        console.print("[yellow]No next episode info found.[/yellow]")
+        return
+    table = Table(title=f"[bold cyan]Next Episode: {data.get('title', '')}[/bold cyan]", show_header=True, header_style="bold magenta")
+    table.add_column("Episode", style="bold white")
+    table.add_column("Airing At (Local)", style="green")
+    table.add_column("Airing At (UTC)", style="blue")
+    table.add_column("Countdown", style="yellow")
+    table.add_row(
+        data.get("episode", "N/A"),
+        data.get("airingAtLocal", "N/A"),
+        data.get("airingAtUTC", "N/A"),
+        data.get("countdown", "N/A")
+    )
+    console.print(table)
+    console.print(f"Timezone: [bold]{data.get('localTimezone', 'N/A')}[/bold]")
+
+def next_ep(anime_id, timezone=DEFAULT_TZ, pretty_print=False):
+    if timezone not in TIMEZONES:
+        timezone = DEFAULT_TZ
+    endpoint = f"next_ep?id={anime_id}&timezone={timezone}"
+    url = f"{BASE_URL}/next_ep"
+    params = {"id": anime_id, "timezone": timezone}
+    data = make_request("next_ep", params=params)
+    if pretty_print:
+        display_next_ep(data)
+        return None
+    return data if data else {}
+
+def display_trailer(data):
+    if not data or data.get("error"):
+        console.print(f"[yellow]No trailer found. {data.get('error', '')}[/yellow]")
+        return
+    table = Table(title=f"[bold cyan]Trailer[/bold cyan]", show_header=True, header_style="bold magenta")
+    table.add_column("Site", style="bold white")
+    table.add_column("URL", style="blue")
+    table.add_column("Thumbnail", style="green")
+    table.add_row(
+        data.get("site", "N/A"),
+        data.get("url", "N/A"),
+        data.get("thumbnail", "N/A")
+    )
+    console.print(table)
+    console.print(f"Embed URL: [cyan]{data.get('embed_url', '')}[/cyan]")
+
+def check_yt_dlp():
+    return check_executable("yt-dlp")
+
+def check_ffplay():
+    return check_executable("ffplay")
+
+def play_trailer(url):
+    if check_executable("vlc"):
+        player = "vlc"
+    elif check_ffplay():
+        player = "ffplay"
+    else:
+        player = None
+
+    def try_install_ytdlp():
+        console.print("[yellow]yt-dlp not found or broken. Attempting auto-install...[/yellow]")
+        result = subprocess.run([sys.executable, "-m", "pip", "install", "yt-dlp"])
+        return result.returncode == 0 and check_yt_dlp()
+
+    ytdlp_ok = check_yt_dlp()
+    if not ytdlp_ok:
+        if not try_install_ytdlp():
+            console.print("[bold red]yt-dlp installation failed. Please install manually: pip install yt-dlp[/bold red]")
+            return
+        ytdlp_ok = True
+
+    if not player:
+        console.print("[bold red]Neither VLC nor ffplay found. Cannot play trailer.")
+        choice = input("Download trailer video instead? (y/n): ").lower()
+        if choice == "y":
+            if not ytdlp_ok and not try_install_ytdlp():
+                console.print("[bold red]yt-dlp installation failed. Cannot download trailer.[/bold red]")
+                return
+            subprocess.run(["yt-dlp", url])
+        return
+
+    if player == "vlc":
+        cmd = f'yt-dlp -o - "{url}" | vlc -'
+    else:
+        cmd = f'yt-dlp -o - "{url}" | ffplay -'
+    console.print(f"[bold green]Playing trailer with {player}...[bold green]")
+    result = subprocess.run(cmd, shell=True)
+    if result.returncode != 0 and not ytdlp_ok:
+        if try_install_ytdlp():
+            console.print("[yellow]Retrying trailer playback after yt-dlp install...[/yellow]")
+            subprocess.run(cmd, shell=True)
+
+def trailer(anime_id, play=False, pretty_print=False):
+    endpoint = f"trailer?id={anime_id}"
+    data = make_request("trailer", params={"id": anime_id})
+    if pretty_print:
+        display_trailer(data)
+    if play and data and data.get("url"):
+        play_trailer(data["url"])
+    return data if data else {}
 
 def proxy_url(url):
     if not url:
@@ -217,7 +327,6 @@ def download_episode(episode_id, download_type, output_path=None):
     proxied_stream_url = proxy_url(stream_url)
     
     try:
-        # Get video duration for progress bar
         probe_cmd = [
             "ffprobe",
             "-v", "error",
@@ -229,18 +338,18 @@ def download_episode(episode_id, download_type, output_path=None):
         try:
             duration = float(subprocess.check_output(probe_cmd).decode().strip())
         except:
-            duration = 0  # If duration can't be determined, progress bar will be indeterminate
+            duration = 0
             console.print("[yellow]Could not determine video duration. Progress will be shown without time estimation.[/yellow]")
 
         console.print("Starting video download...")
 
         ffmpeg_cmd = [
             "ffmpeg",
-            "-y",  # Overwrite output file if it exists
-            "-i", proxied_stream_url,  # Input file
-            "-c", "copy",  # Copy streams without re-encoding
-            "-bsf:a", "aac_adtstoasc",  # Fix audio stream format if needed
-            output_path  # Output file
+            "-y",
+            "-i", proxied_stream_url,
+            "-c", "copy",
+            "-bsf:a", "aac_adtstoasc",
+            output_path
         ]
 
         process = subprocess.Popen(ffmpeg_cmd, stderr=subprocess.PIPE, universal_newlines=True)
@@ -430,11 +539,117 @@ def display_suggestions(suggestions_data):
         )
     console.print(table)
     
-def search_anime(query, page):
+
+def search(query, page=1, pretty_print=False):
     endpoint = f"search/{quote(query)}"
     data = make_request(endpoint, params={"page": page, "max_results": 10})
-    if data:
+    if pretty_print:
         display_search_results(data)
+        return None
+    if data and data.get("results"):
+        return data["results"]
+    return []
+
+def info(anime_id, pretty_print=False):
+    endpoint = f"info/{anime_id}"
+    data = make_request(endpoint)
+    if pretty_print:
+        display_anime_info(data)
+        return None
+    return data if data else {}
+
+def recent_episodes(page=1, pretty_print=False):
+    data = make_request("recent-episodes", params={"page": page})
+    if pretty_print:
+        display_search_results(data, title="Recently Updated Episodes")
+        return None
+    if data and data.get("results"):
+        return data["results"]
+    return []
+
+def top_airing(page=1, pretty_print=False):
+    data = make_request("top-airing", params={"page": page})
+    if pretty_print:
+        display_search_results(data, title="Top Airing Anime")
+        return None
+    if data and data.get("results"):
+        return data["results"]
+    return []
+
+def genres(pretty_print=False):
+    data = make_request("genre/list")
+    if pretty_print:
+        console.print(Panel(", ".join(data), title="[bold cyan]Available Genres[/bold cyan]", border_style="cyan"))
+        return None
+    return data if data else []
+
+def genre_search(genre, page=1, pretty_print=False):
+    endpoint = f"genre/{quote(genre)}"
+    data = make_request(endpoint, params={"page": page})
+    if pretty_print:
+        display_search_results(data, title=f"Results for Genre: {genre.capitalize()}")
+        return None
+    if data and data.get("results"):
+        return data["results"]
+    return []
+
+def studio_search(studio_id, page=1, pretty_print=False):
+    endpoint = f"studio/{quote(studio_id)}"
+    data = make_request(endpoint, params={"page": page})
+    if pretty_print:
+        display_search_results(data, title=f"Results for Studio: {studio_id}")
+        return None
+    if data and data.get("results"):
+        return data["results"]
+    return []
+
+def schedule(date, pretty_print=False):
+    endpoint = f"schedule/{date}"
+    data = make_request(endpoint)
+    if pretty_print:
+        display_schedule(data, date)
+        return None
+    return data if data else []
+
+def spotlight(pretty_print=False):
+    data = make_request("spotlight")
+    if pretty_print:
+        display_spotlight(data)
+        return None
+    return data if data else []
+
+def search_suggestions(query, pretty_print=False):
+    endpoint = f"search-suggestions/{quote(query)}"
+    data = make_request(endpoint)
+    if pretty_print:
+        display_suggestions(data)
+        return None
+    return data if data else []
+
+def download(episode_id_or_anime_id, ep_num_or_type, dl_type=None, output_path=None):
+    if "$episode$" in episode_id_or_anime_id:
+        episode_id = episode_id_or_anime_id
+        download_type = ep_num_or_type
+        return download_episode(episode_id, download_type, output_path)
+    else:
+        anime_id = episode_id_or_anime_id
+        ep_num_str = ep_num_or_type
+        return get_and_download_episode(anime_id, ep_num_str, dl_type, output_path)
+
+def watch(episode_id_or_anime_id, ep_num_or_type, watch_type=None):
+    if "$episode$" in episode_id_or_anime_id:
+        episode_id = episode_id_or_anime_id
+        return watch_episode(episode_id, ep_num_or_type)
+    else:
+        anime_id = episode_id_or_anime_id
+        ep_num_str = ep_num_or_type
+        return get_and_watch_episode(anime_id, ep_num_str, watch_type)
+
+def version():
+    return __version__
+
+def check_updates():
+    check_for_updates()
 
 def get_anime_info(anime_id):
     endpoint = f"info/{anime_id}"
@@ -590,6 +805,8 @@ def display_help(command=None):
         "schedule": ("-sc, -schedule <YYYY-MM-DD>", "Get the airing schedule for a specific date."),
         "spotlight": ("-sp, -spotlight", "Show spotlight anime."),
         "suggestions": ("-ss, -search-suggestions <query>", "Get search suggestions for a query."),
+        "next_ep": ("-ne, -next-ep <anime_id> [timezone]", "Get next episode info. Optionally specify a timezone (default BST)."),
+        "trailer": ("-tr, -trailer <anime_id> [play]", "Get trailer info for an anime. Add 'play' to play the trailer."),
         "pagination": ("-p, -page <number>", "Used with commands that support pages (search, recent, etc.)."),
         "version": ("-v, -version", "Show the script version and check for updates.")
     }
@@ -608,9 +825,9 @@ def display_help(command=None):
         console.print(table)
         console.print("\nUse -h <command_name> (e.g., -h download) for specific command help.")
         
+
 def main():
     parser = argparse.ArgumentParser(description=f"pyanimecli v{__version__} - A CLI for anime.", add_help=False)
-    
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-s', '-search', dest='search', nargs='+', help='Search for an anime.')
     group.add_argument('-i', '-info', dest='info', help='Get info for an anime by ID.')
@@ -624,6 +841,8 @@ def main():
     group.add_argument('-sc', '-schedule', dest='schedule', help='Get schedule for a date (YYYY-MM-DD).')
     group.add_argument('-sp', '-spotlight', dest='spotlight', action='store_true', help='Get spotlight anime.')
     group.add_argument('-ss', '-search-suggestions', dest='suggestions', nargs='+', help='Get search suggestions.')
+    group.add_argument('-ne', '-next-ep', dest='next_ep', nargs='+', help='Get next episode info. Usage: -ne <anime_id> [timezone]')
+    group.add_argument('-tr', '-trailer', dest='trailer', nargs='+', help='Get trailer. Usage: -tr <anime_id> [play]')
     group.add_argument('-h', '-help', dest='help', nargs='?', const='all', help='Show help message.')
     group.add_argument('-v', '-version', dest='version', action='store_true', help='Show script version.')
 
@@ -635,7 +854,6 @@ def main():
 
     try:
         args = parser.parse_args()
-        
         if args.help:
             cmd_map = {
                 "search": "search", "s": "search", "info": "info", "i": "info",
@@ -646,6 +864,8 @@ def main():
                 "studio": "studio", "st": "studio", "schedule": "schedule", "sc": "schedule",
                 "spotlight": "spotlight", "sp": "spotlight",
                 "suggestions": "suggestions", "ss": "suggestions", "search-suggestions": "suggestions",
+                "next_ep": "next_ep", "ne": "next_ep", "next-ep": "next_ep",
+                "trailer": "trailer", "tr": "trailer",
                 "page": "pagination", "p": "pagination", "version": "version", "v": "version",
             }
             command_to_help = cmd_map.get(args.help) if args.help != 'all' else None
@@ -654,20 +874,20 @@ def main():
             console.print(f"pyanimecli version [bold cyan]{__version__}[/bold cyan]")
             check_for_updates()
         elif args.search:
-            search_anime(' '.join(args.search), args.page)
+            search(' '.join(args.search), args.page, pretty_print=True)
         elif args.info:
-            get_anime_info(args.info)
+            info(args.info, pretty_print=True)
         elif args.watch:
             first_arg = args.watch[0]
             if "$episode$" in first_arg:
                 if len(args.watch) == 2:
-                    watch_episode(args.watch[0], args.watch[1].lower())
+                    watch(first_arg, args.watch[1].lower())
                 else:
                     console.print("[bold red]Invalid Usage:[/bold red] Use: <episode_id> <sub|dub>")
                     display_help('watch')
             else:
                 if len(args.watch) == 3:
-                    get_and_watch_episode(args.watch[0], args.watch[1], args.watch[2].lower())
+                    watch(first_arg, args.watch[1], args.watch[2].lower())
                 else:
                     console.print("[bold red]Invalid Usage:[/bold red] Use: <anime_id> <ep_num> <sub|dub>")
                     display_help('watch')
@@ -682,7 +902,7 @@ def main():
                     return
                 episode_id, dl_type = args_list[0], args_list[1]
                 output_path = args_list[2] if len(args_list) == 3 else None
-                download_episode(episode_id, dl_type.lower(), output_path)
+                download(episode_id, dl_type.lower(), output_path=output_path)
             else:
                 if len(args_list) not in [3, 4]:
                     console.print("[bold red]Invalid Usage:[/bold red] Use: <anime_id> <ep_num> <type> [output_path]")
@@ -690,26 +910,35 @@ def main():
                     return
                 anime_id, ep_num_str, dl_type = args_list[0], args_list[1], args_list[2]
                 output_path = args_list[3] if len(args_list) == 4 else None
-                get_and_download_episode(anime_id, ep_num_str, dl_type.lower(), output_path)
+                download(anime_id, ep_num_str, dl_type.lower(), output_path)
         elif args.recent:
-            get_recent_episodes(args.page)
+            recent_episodes(args.page, pretty_print=True)
         elif args.top_airing:
-            get_top_airing(args.page)
+            top_airing(args.page, pretty_print=True)
         elif args.genres:
-            list_genres()
+            genres(pretty_print=True)
         elif args.genre_search:
-            search_by_genre(' '.join(args.genre_search), args.page)
+            genre_search(' '.join(args.genre_search), args.page, pretty_print=True)
         elif args.studio:
-            search_by_studio(' '.join(args.studio), args.page)
+            studio_search(' '.join(args.studio), args.page, pretty_print=True)
         elif args.schedule:
-            get_schedule(args.schedule)
+            schedule(args.schedule, pretty_print=True)
         elif args.spotlight:
-            get_spotlight()
+            spotlight(pretty_print=True)
         elif args.suggestions:
-            get_search_suggestions(' '.join(args.suggestions))
+            search_suggestions(' '.join(args.suggestions), pretty_print=True)
+        elif args.next_ep:
+            anime_id = args.next_ep[0]
+            tz = args.next_ep[1] if len(args.next_ep) > 1 else DEFAULT_TZ
+            next_ep(anime_id, tz, pretty_print=True)
+        elif args.trailer:
+            anime_id = args.trailer[0]
+            play = False
+            if len(args.trailer) > 1 and args.trailer[1].lower() == "play":
+                play = True
+            trailer(anime_id, play=play, pretty_print=True)
         else:
-             display_help()
-
+            display_help()
     except argparse.ArgumentError as e:
         console.print(f"[bold red]Argument Error:[/bold red] {e}")
         display_help()

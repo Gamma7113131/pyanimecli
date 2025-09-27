@@ -11,6 +11,7 @@ A powerful command-line interface for searching, getting info, and watching anim
 
 ---
 
+
 ## 🚀 Features
 
 - 🔍 **Search:** Find any anime by title.
@@ -20,8 +21,12 @@ A powerful command-line interface for searching, getting info, and watching anim
 - 🌟 **Discover:** Browse recently updated episodes, top airing anime, and spotlight series.
 - 🧭 **Explore:** Search by genre or studio.
 - 📆 **Schedule:** View airing schedules by date.
-- 💻 **Cross-Platform:** Works on Linux, macOS, and Windows.
+- � **Next Episode:** See countdowns and local/UTC air times for upcoming episodes (with timezone support).
+- 🎞️ **Trailers:** Fetch and play anime trailers (auto-installs yt-dlp if missing).
+- �💻 **Cross-Platform:** Works on Linux, macOS, and Windows.
 - 🎨 **Rich Formatting:** Clean, colorful, and easy-to-read output in your terminal.
+- **Next Episode:** Use `-ne <anime_id> [timezone]` to see countdowns and air times for upcoming episodes. Supported timezones: UTC, BST, EST, JST, etc.
+- **Trailers:** Use `-tr <anime_id> [play]` to fetch and play trailers. If yt-dlp is missing, it will auto-install.
 
 ---
 
@@ -120,10 +125,31 @@ pyanimecli -g
 pyanimecli -gs "action"
 ```
 
+
 #### 8. View the Airing Schedule:
 
 ```bash
 pyanimecli -sc 2025-07-04
+```
+
+#### 9. Show Next Episode Info (with timezone):
+
+```bash
+# Show next episode info (default timezone BST)
+pyanimecli -ne dragon-ball-super-1692
+
+# Specify timezone (e.g., UTC)
+pyanimecli -ne dragon-ball-super-1692 UTC
+```
+
+#### 10. Get and Play Anime Trailers:
+
+```bash
+# Show trailer info
+pyanimecli -tr dragon-ball-super-1692
+
+# Play trailer (auto-installs yt-dlp if missing)
+pyanimecli -tr dragon-ball-super-1692 play
 ```
 
 ---

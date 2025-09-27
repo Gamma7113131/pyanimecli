@@ -1,1 +1,19 @@
-from .pyanimecli import main
+from .pyanimecli import (
+	main,
+	search,
+	info,
+	recent_episodes,
+	top_airing,
+	genres,
+	genre_search,
+	studio_search,
+	schedule,
+	spotlight,
+	search_suggestions,
+	download,
+	watch,
+	version,
+	check_updates,
+	next_ep,
+	trailer
+)
