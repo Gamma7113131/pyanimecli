@@ -7,11 +7,10 @@ license = {text = "MIT"}
 readme = "README.md"
 dependencies = ["requests", "rich", "pym3u8downloader", "packaging", "tqdm"]
 
-urls = { 
-    "Homepage" = "https://github.com/Gamma7113131/pyanimecli",
-    "Source" = "https://github.com/Gamma7113131/pyanimecli",
-    "Tracker" = "https://github.com/Gamma7113131/pyanimecli/issues"
-}
+[project.urls]
+Homepage = "https://github.com/Gamma7113131/pyanimecli"
+Source = "https://github.com/Gamma7113131/pyanimecli"
+Tracker = "https://github.com/Gamma7113131/pyanimecli/issues"
 
 [build-system]
 requires = ["setuptools>=61.0"]
