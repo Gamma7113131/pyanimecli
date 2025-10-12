@@ -1,6 +1,6 @@
 [project]
 name = "pyanimecli"
-version = "1.2.1"
+version = "1.2.2"
 description = "A powerful command-line interface for searching, getting info, and watching anime directly from your terminal."
 authors = [{name="Gamma", email="Gamma.scratch@gmail.com"}]
 license = {text = "MIT"}

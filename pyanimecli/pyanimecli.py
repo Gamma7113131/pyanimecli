@@ -1,3 +1,4 @@
+
 import sys
 import argparse
 import requests
@@ -13,7 +14,7 @@ try:
     from pym3u8downloader import M3U8Downloader
 except ImportError:
     M3U8Downloader = None
-    
+
 try:
     from packaging import version as semver
 except ImportError:
@@ -30,7 +31,14 @@ except ImportError:
     print("Error: The 'rich' library is required. Please install it using 'pip install rich'.")
     sys.exit(1)
 
-__version__ = "1.2.1"
+try:
+    from rich_pixels import Pixels
+    from PIL import Image
+except ImportError:
+    Pixels = None
+    Image = None
+
+__version__ = "1.2.2"
 PACKAGE_NAME = "pyanimecli"
 
 console = Console()
@@ -181,18 +189,29 @@ def display_search_results(results, title="Search Results"):
         console.print("[yellow]No results found.[/yellow]")
         return
 
+    try:
+        term_width = console.size.width
+    except Exception:
+        term_width = 120
+
+    id_width = 32 if term_width < 100 else 40
+    title_width = max(20, term_width // 5)
+
     table = Table(title=f"[bold cyan]{title}[/bold cyan]", show_header=True, header_style="bold magenta")
-    table.add_column("ID", style="dim", width=40)
-    table.add_column("Title", style="bold white", min_width=20)
+    table.add_column("ID", style="dim", width=id_width)
+    table.add_column("Title", style="bold white", min_width=title_width)
     table.add_column("Type", style="green", width=8)
     table.add_column("Sub", style="blue", width=5)
     table.add_column("Dub", style="red", width=5)
     table.add_column("Duration", style="yellow", width=10)
 
     for item in results["results"]:
+        anime_id = item.get("id", "N/A")
+        title_text = Text(item.get("title", "N/A"), style="bold white")
+        title_text.stylize("link pyanimecli -i {}".format(anime_id))
         table.add_row(
-            item.get("id", "N/A"),
-            item.get("title", "N/A"),
+            anime_id,
+            title_text,
             item.get("type", "N/A"),
             str(item.get("sub", "0")),
             str(item.get("dub", "0")),
@@ -209,7 +228,7 @@ def display_anime_info(info):
 
     title = info.get("title", "No Title")
     description = clean_description(info.get("description"))
-    
+
     info_text = Text()
     info_text.append(f"ID: ", style="bold magenta")
     info_text.append(f"{info.get('id', 'N/A')}\n")
@@ -226,11 +245,28 @@ def display_anime_info(info):
     info_text.append(f"Genres: ", style="bold magenta")
     info_text.append(f"{', '.join(info.get('genres', ['N/A']))}\n")
     info_text.append(f"Image: ", style="bold magenta")
-    info_text.append(proxy_url(info.get('image', '')), style="cyan underline")
+    info_text.append(f"{proxy_url(info.get('image', ''))}\n", style="cyan")
+    info_text.append(f"Aname: ", style="bold magenta")
+    info_text.append(f"https://aname.vercel.app/details/{info.get('id', 'N/A')}", style="cyan")
+
+    img_url = info.get("image")
+    if img_url and Pixels and Image:
+        try:
+            img_data = requests.get(img_url, timeout=5).content
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                tmp.write(img_data)
+                tmp_path = tmp.name
+            with Image.open(tmp_path) as img:
+                    img = img.resize((32, 42))
+                    pixels = Pixels.from_image(img)
+            console.print(Panel(pixels, title="[bold]Anime Image[/bold]", border_style="cyan"))
+            os.remove(tmp_path)
+        except Exception as e:
+            console.print(f"[yellow]Could not render image: {e}[/yellow]")
 
     console.print(Panel(info_text, title=f"[bold green]{title}[/bold green]", border_style="green", expand=False))
     console.print(Panel(description, title="[bold]Description[/bold]", border_style="blue"))
-    
+
     episodes = info.get("episodes", [])
     if episodes:
         episode_table = Table(title="[bold cyan]Episodes[/bold cyan]", show_header=True, header_style="bold magenta")
@@ -239,13 +275,14 @@ def display_anime_info(info):
         episode_table.add_column("Episode ID", style="dim")
 
         for ep in episodes:
+            ep_id = ep.get("id", "N/A")
+            ep_title = Text(ep.get("title", "N/A"), style="bold white")
             episode_table.add_row(
                 str(ep.get("number", "N/A")),
-                ep.get("title", "N/A"),
-                ep.get("id", "N/A")
+                ep_title,
+                ep_id
             )
         console.print(episode_table)
-        console.print("Use -w <Episode ID> <sub|dub> to watch.")
 
 def sanitize_filename(name):
     if not name:

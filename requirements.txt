@@ -4,3 +4,5 @@ pym3u8downloader
 packaging
 tqdm
 yt-dlp
+pillow
+rich-pixels
