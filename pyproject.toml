@@ -1,11 +1,16 @@
 [project]
 name = "pyanimecli"
-version = "1.2"
+version = "1.2.1"
 description = "A powerful command-line interface for searching, getting info, and watching anime directly from your terminal."
 authors = [{name="Gamma", email="Gamma.scratch@gmail.com"}]
 license = {text = "MIT"}
 readme = "README.md"
 dependencies = ["requests", "rich", "pym3u8downloader", "packaging", "tqdm"]
+
+[project.urls]
+Homepage = "https://github.com/Gamma7113131/pyanimecli"
+Source = "https://github.com/Gamma7113131/pyanimecli"
+Tracker = "https://github.com/Gamma7113131/pyanimecli/issues"
 
 [build-system]
 requires = ["setuptools>=61.0"]
