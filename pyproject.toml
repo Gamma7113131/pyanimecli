@@ -5,7 +5,7 @@ description = "A powerful command-line interface for searching, getting info, an
 authors = [{name="Gamma", email="Gamma.scratch@gmail.com"}]
 license = {text = "MIT"}
 readme = "README.md"
-dependencies = ["requests", "rich", "pym3u8downloader", "packaging", "tqdm"]
+dependencies = ["requests", "rich", "pym3u8downloader", "packaging", "tqdm", "rich-pixels", "pillow"]
 
 [project.urls]
 Homepage = "https://github.com/Gamma7113131/pyanimecli"
