@@ -25,8 +25,6 @@ A powerful command-line interface for searching, getting info, and watching anim
 - 🎞️ **Trailers:** Fetch and play anime trailers (auto-installs yt-dlp if missing).
 - �💻 **Cross-Platform:** Works on Linux, macOS, and Windows.
 - 🎨 **Rich Formatting:** Clean, colorful, and easy-to-read output in your terminal.
-- **Next Episode:** Use `-ne <anime_id> [timezone]` to see countdowns and air times for upcoming episodes. Supported timezones: UTC, BST, EST, JST, etc.
-- **Trailers:** Use `-tr <anime_id> [play]` to fetch and play trailers. If yt-dlp is missing, it will auto-install.
 
 ---
 

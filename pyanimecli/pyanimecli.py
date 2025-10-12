@@ -35,7 +35,6 @@ PACKAGE_NAME = "pyanimecli"
 
 console = Console()
 
-
 BASE_URL = "https://yumaapi.vercel.app"
 PROXY_URL = "https://gammam3u8proxy-fxsb.vercel.app/cors?url="
 
