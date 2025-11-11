@@ -2,7 +2,7 @@
 ![PyPI version](https://img.shields.io/pypi/v/pyanimecli.svg)
 ![Build](https://github.com/Gamma7113131/pyanimecli/actions/workflows/publish.yml/badge.svg)
 ![License](https://img.shields.io/pypi/l/pyanimecli.svg)
-![Downloads](https://img.shields.io/pypi/dm/pyanimecli.svg)
+[![Downloads](https://img.shields.io/pepy/dt/pyanimecli?style=for-the-badge)](https://pepy.tech/project/pyanimecli)
 [![Visit website](https://img.shields.io/badge/Visit-website-green)](https://pyanimecli.vercel.app)
 
 
