@@ -18,3 +18,7 @@ build-backend = "setuptools.build_meta"
 
 [project.scripts]
 pyanimecli = "pyanimecli.pyanimecli:main"
+
+[tool.setuptools.packages.find]
+include = ["pyanimecli*"]
+exclude = ["web*"]
