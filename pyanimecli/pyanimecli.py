@@ -42,7 +42,7 @@ except ImportError:
     Pixels = None
     Image = None
 
-__version__ = "1.2.4"
+__version__ = "1.2.5"
 PACKAGE_NAME = "pyanimecli"
 
 console = Console()
@@ -63,10 +63,14 @@ HOST_MAP = {
     "default": "https://yumaapi.vercel.app",
     "local": "http://localhost:8192"
 }
+PROXY_MAP = {
+    "default": "https://gammam3u8proxy-fxsb.vercel.app/cors?url=",
+    "local": "http://localhost:5010/cors?url="
+}
 DEFAULT_SETTINGS = {
     "host": HOST_MAP["local"],
+    "proxy_url": PROXY_MAP["local"],
     "source": "sub",
-    "proxy_url": "https://gammam3u8proxy-fxsb.vercel.app/cors?url=",
     "player": "vlc",
     "auto_update": True,
     "download_path": str(Path.home() / "Downloads" / "Anime")
@@ -89,10 +93,9 @@ class Settings:
 
     def update(self, key, value):
         if key == "host":
-            if value.lower() in HOST_MAP:
-                self.data[key] = HOST_MAP[value.lower()]
-            else:
-                self.data[key] = value
+            self.data[key] = HOST_MAP.get(value.lower(), value)
+        elif key == "proxy_url":
+            self.data[key] = PROXY_MAP.get(value.lower(), value)
         elif value.lower() == "default" and key in DEFAULT_SETTINGS:
             self.data[key] = DEFAULT_SETTINGS[key]
         else:
@@ -153,6 +156,49 @@ class LocalServerManager:
             creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
         )
         time.sleep(3)
+
+class LocalProxyManager:
+    REPO_ZIP = "https://github.com/princevegetadev/gammam3u8proxy/archive/refs/heads/main.zip"
+    PROXY_DIR = CONFIG_DIR / "proxy_files"
+    
+    def is_running(self):
+        try:
+            requests.get("http://localhost:5010/cors?url=http://google.com", timeout=1)
+            return True
+        except:
+            return False
+
+    def install_or_update(self):
+        console.print("[yellow]Installing/Updating Local CORS Proxy...[/yellow]")
+        r = requests.get(self.REPO_ZIP)
+        with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+            z.extractall(self.PROXY_DIR)
+        
+        extracted_folder = next(self.PROXY_DIR.glob("gammam3u8proxy-*"))
+        
+        subprocess.run([sys.executable, "-m", "pip", "install", "-r", str(extracted_folder / "requirements.txt")], 
+                       stdout=subprocess.DEVNULL)
+        
+        (self.PROXY_DIR / ".latest").write_text(str(time.time()))
+
+    def start_headless(self):
+        if self.is_running():
+            return
+
+        if not list(self.PROXY_DIR.glob("gammam3u8proxy-*")):
+            self.install_or_update()
+
+        extracted_folder = next(self.PROXY_DIR.glob("gammam3u8proxy-*"))
+        console.print("[cyan]Launching Local Proxy Server (Port 5010)...[/cyan]")
+        
+        subprocess.Popen(
+            [sys.executable, "main.py"],
+            cwd=str(extracted_folder),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
+        )
+        time.sleep(2)
 
 settings = Settings()
 
@@ -266,6 +312,8 @@ def proxy_url(url):
 def make_request(endpoint, params=None):
     if "localhost:8192" in settings.data['host']:
         LocalServerManager().start_headless()
+    if "localhost:5010" in settings.data['proxy_url']:
+        LocalProxyManager().start_headless()
     url = f"{settings.data['host']}/{endpoint}"
     spinner = Spinner("dots", text=Text(f"Fetching data from {url}...", style="cyan"))
     with Live(spinner, console=console, transient=True, refresh_per_second=20):
