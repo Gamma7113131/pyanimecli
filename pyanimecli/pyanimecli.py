@@ -42,7 +42,7 @@ except ImportError:
     Pixels = None
     Image = None
 
-__version__ = "1.2.3"
+__version__ = "1.2.4"
 PACKAGE_NAME = "pyanimecli"
 
 console = Console()
@@ -64,7 +64,7 @@ HOST_MAP = {
     "local": "http://localhost:8192"
 }
 DEFAULT_SETTINGS = {
-    "host": HOST_MAP["default"],
+    "host": HOST_MAP["local"],
     "source": "sub",
     "proxy_url": "https://gammam3u8proxy-fxsb.vercel.app/cors?url=",
     "player": "vlc",
