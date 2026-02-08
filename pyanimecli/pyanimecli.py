@@ -42,7 +42,7 @@ except ImportError:
     Pixels = None
     Image = None
 
-__version__ = "1.2.5"
+__version__ = "1.2.6"
 PACKAGE_NAME = "pyanimecli"
 
 console = Console()
@@ -307,7 +307,11 @@ def trailer(anime_id, play=False, pretty_print=False):
 def proxy_url(url):
     if not url:
         return ""
-    return f"{PROXY_URL}{url}"
+    base_proxy = settings.data.get('proxy_url', PROXY_MAP["default"])
+    if "localhost:5010" in base_proxy:
+        LocalProxyManager().start_headless()
+        
+    return f"{base_proxy}{url}"
 
 def make_request(endpoint, params=None):
     if "localhost:8192" in settings.data['host']:
