@@ -1,4 +1,5 @@
 # pyanimecli
+![PyPI version](https://img.shields.io/pypi/v/pyanimecli.svg)
 ![Build](https://github.com/princevegetadev/pyanimecli/actions/workflows/publish.yml/badge.svg)
 ![License](https://img.shields.io/pypi/l/pyanimecli.svg)
 [![Downloads](https://img.shields.io/pepy/dt/pyanimecli)](https://pepy.tech/project/pyanimecli)
