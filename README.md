@@ -2,7 +2,8 @@
 ![PyPI version](https://img.shields.io/pypi/v/pyanimecli.svg)
 ![Build](https://github.com/princevegetadev/pyanimecli/actions/workflows/publish.yml/badge.svg)
 ![License](https://img.shields.io/pypi/l/pyanimecli.svg)
-![Downloads](https://img.shields.io/pypi/dm/pyanimecli.svg)
+[![Downloads](https://img.shields.io/pepy/dt/pyanimecli)](https://pepy.tech/project/pyanimecli)
+[![Visit website](https://img.shields.io/badge/Visit-website-green)](https://pyanimecli.vercel.app)
 
 
 A powerful command-line interface for searching, getting info, and watching anime directly from your terminal, powered by the [YumaAPI](https://yumaapi.vercel.app/).
