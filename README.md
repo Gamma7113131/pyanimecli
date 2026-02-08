@@ -1,6 +1,6 @@
 # pyanimecli
 ![PyPI version](https://img.shields.io/pypi/v/pyanimecli.svg)
-![Build](https://github.com/Gamma7113131/pyanimecli/actions/workflows/publish.yml/badge.svg)
+![Build](https://github.com/princevegetadev/pyanimecli/actions/workflows/publish.yml/badge.svg)
 ![License](https://img.shields.io/pypi/l/pyanimecli.svg)
 ![Downloads](https://img.shields.io/pypi/dm/pyanimecli.svg)
 
@@ -12,23 +12,23 @@ A powerful command-line interface for searching, getting info, and watching anim
 ---
 
 
-## 🚀 Features
+## Features
 
-- 🔍 **Search:** Find any anime by title.
-- 📋 **Detailed Info:** Descriptions, episode lists, genres, and more.
-- 🎬 **Stream with VLC:** Watch subbed or dubbed episodes in VLC Media Player.
-- 💬 **Automatic Subtitles:** Automatically loads subtitles for subbed streams.
-- 🌟 **Discover:** Browse recently updated episodes, top airing anime, and spotlight series.
-- 🧭 **Explore:** Search by genre or studio.
-- 📆 **Schedule:** View airing schedules by date.
-- � **Next Episode:** See countdowns and local/UTC air times for upcoming episodes (with timezone support).
-- 🎞️ **Trailers:** Fetch and play anime trailers (auto-installs yt-dlp if missing).
-- �💻 **Cross-Platform:** Works on Linux, macOS, and Windows.
-- 🎨 **Rich Formatting:** Clean, colorful, and easy-to-read output in your terminal.
+- **Search:** Find any anime by title.
+- **Detailed Info:** Descriptions, episode lists, genres, and more.
+- **Stream with VLC:** Watch subbed or dubbed episodes in VLC Media Player.
+- **Automatic Subtitles:** Automatically loads subtitles for subbed streams.
+- **Discover:** Browse recently updated episodes, top airing anime, and spotlight series.
+- **Explore:** Search by genre or studio.
+- **Schedule:** View airing schedules by date.
+- **Next Episode:** See countdowns and local/UTC air times for upcoming episodes (with timezone support).
+- **Trailers:** Fetch and play anime trailers (auto-installs yt-dlp if missing).
+- **Cross-Platform:** Works on Linux, macOS, and Windows.
+- **Rich Formatting:** Clean, colorful, and easy-to-read output in your terminal.
 
 ---
 
-## 📦 Installation
+## Installation
 
 ### From PyPI (Recommended)
 
@@ -42,14 +42,14 @@ pip install pyanimecli
 ### From Git (Latest)
 
 ```bash
-pip install git+https://github.com/Gamma7113131/pyanimecli.git
+pip install git+https://github.com/princevegetadev/pyanimecli.git
 ```
 
 > This installs the latest commit from the repository’s main branch.
 
 ---
 
-## 🛠 Prerequisites
+## Prerequisites
 
 1. **Python 3.11+**
 2. **VLC Media Player:** Must be installed and accessible from your system's PATH. [Download VLC](https://www.videolan.org/vlc/)
@@ -61,7 +61,7 @@ pip install git+https://github.com/Gamma7113131/pyanimecli.git
 
 ---
 
-## 🧪 Usage
+## Usage
 
 Get a full list of commands:
 
@@ -71,7 +71,7 @@ pyanimecli -h
 
 ---
 
-### 📖 Command Examples
+### Command Examples
 
 #### 1. Search for an anime:
 
@@ -152,6 +152,6 @@ pyanimecli -tr dragon-ball-super-1692 play
 
 ---
 
-## ⚠️ Disclaimer
+## Disclaimer
 
 This tool is created for educational purposes only. All content is sourced from the publicly available [YumaAPI](https://yumaapi.vercel.app/). Please respect the rights and policies of the original content providers.

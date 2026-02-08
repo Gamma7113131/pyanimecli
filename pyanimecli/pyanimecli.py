@@ -1,8 +1,10 @@
-
 import sys
 import argparse
 import requests
 import platform
+import zipfile
+import io
+import time
 import subprocess
 import tempfile
 import shutil
@@ -10,6 +12,8 @@ import os
 import re
 from urllib.parse import quote
 from tqdm import tqdm
+import json
+from pathlib import Path
 try:
     from pym3u8downloader import M3U8Downloader
 except ImportError:
@@ -38,7 +42,7 @@ except ImportError:
     Pixels = None
     Image = None
 
-__version__ = "1.2.2"
+__version__ = "1.2.3"
 PACKAGE_NAME = "pyanimecli"
 
 console = Console()
@@ -53,6 +57,105 @@ TIMEZONES = [
     "CET", "CEST", "EET", "EEST", "WET", "WEST", "MSK", "MSD", "AST", "ADT", "NST", "NDT"
 ]
 DEFAULT_TZ = "BST"
+CONFIG_DIR = Path.home() / ".pyanimecli"
+CONFIG_FILE = CONFIG_DIR / "config.json"
+HOST_MAP = {
+    "default": "https://yumaapi.vercel.app",
+    "local": "http://localhost:8192"
+}
+DEFAULT_SETTINGS = {
+    "host": HOST_MAP["default"],
+    "source": "sub",
+    "proxy_url": "https://gammam3u8proxy-fxsb.vercel.app/cors?url=",
+    "player": "vlc",
+    "auto_update": True,
+    "download_path": str(Path.home() / "Downloads" / "Anime")
+}
+
+class Settings:
+    def __init__(self):
+        CONFIG_DIR.mkdir(exist_ok=True)
+        self.data = self.load()
+
+    def load(self):
+        if CONFIG_FILE.exists():
+            with open(CONFIG_FILE, "r") as f:
+                return {**DEFAULT_SETTINGS, **json.load(f)}
+        return DEFAULT_SETTINGS.copy()
+
+    def save(self):
+        with open(CONFIG_FILE, "w") as f:
+            json.dump(self.data, f, indent=4)
+
+    def update(self, key, value):
+        if key == "host":
+            if value.lower() in HOST_MAP:
+                self.data[key] = HOST_MAP[value.lower()]
+            else:
+                self.data[key] = value
+        elif value.lower() == "default" and key in DEFAULT_SETTINGS:
+            self.data[key] = DEFAULT_SETTINGS[key]
+        else:
+            self.data[key] = value
+        self.save()
+
+class LocalServerManager:
+    REPO_ZIP = "https://github.com/princevegetadev/YumaAnimeAPI/archive/refs/heads/main.zip"
+    SERVER_DIR = CONFIG_DIR / "server_files"
+    
+    def get_latest_commit_date(self):
+        try:
+            api_url = "https://api.github.com/repos/princevegetadev/YumaAnimeAPI/commits/main"
+            res = requests.get(api_url, timeout=5)
+            return res.json()['commit']['committer']['date']
+        except:
+            return None
+
+    def needs_update(self):
+        latest = self.get_latest_commit_date()
+        status_file = self.SERVER_DIR / ".latest"
+        if not status_file.exists() or not latest:
+            return True
+        return status_file.read_text().strip() != latest
+
+    def install_or_update(self):
+        console.print("[cyan]Updating local API environment...[/cyan]")
+        r = requests.get(self.REPO_ZIP)
+        with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+            z.extractall(self.SERVER_DIR)
+        
+        extracted_folder = next(self.SERVER_DIR.glob("YumaAnimeAPI-*"))
+        
+        subprocess.run([sys.executable, "-m", "pip", "install", "-r", str(extracted_folder / "requirements.txt")], 
+                       stdout=subprocess.DEVNULL)
+        
+        latest_date = self.get_latest_commit_date()
+        (self.SERVER_DIR / ".latest").write_text(latest_date or str(time.time()))
+
+    def start_headless(self):
+        try:
+            requests.get("http://localhost:8192", timeout=1)
+            return
+        except:
+            pass
+
+        if self.needs_update():
+            self.install_or_update()
+
+        extracted_folder = next(self.SERVER_DIR.glob("YumaAnimeAPI-*"))
+        console.print("[green]Launching Local API Server...[/green]")
+        
+        subprocess.Popen(
+            [sys.executable, "app.py"],
+            cwd=str(extracted_folder),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
+        )
+        time.sleep(3)
+
+settings = Settings()
+
 def display_next_ep(data):
     if not data or not data.get("found"):
         console.print("[yellow]No next episode info found.[/yellow]")
@@ -161,7 +264,9 @@ def proxy_url(url):
     return f"{PROXY_URL}{url}"
 
 def make_request(endpoint, params=None):
-    url = f"{BASE_URL}/{endpoint}"
+    if "localhost:8192" in settings.data['host']:
+        LocalServerManager().start_headless()
+    url = f"{settings.data['host']}/{endpoint}"
     spinner = Spinner("dots", text=Text(f"Fetching data from {url}...", style="cyan"))
     with Live(spinner, console=console, transient=True, refresh_per_second=20):
         try:
@@ -883,6 +988,7 @@ def main():
     group.add_argument('-v', '-version', dest='version', action='store_true', help='Show script version.')
 
     parser.add_argument('-p', '-page', dest='page', type=int, default=1, help='Page number for paginated results.')
+    parser.add_argument('--settings', nargs='*', help='Open settings menu or set key="value"')
 
     if len(sys.argv) == 1:
         display_help()
@@ -973,6 +1079,24 @@ def main():
             if len(args.trailer) > 1 and args.trailer[1].lower() == "play":
                 play = True
             trailer(anime_id, play=play, pretty_print=True)
+        elif args.settings is not None:
+            if len(args.settings) == 0:
+                console.print(Panel("[bold cyan]pyanimecli Configuration[/bold cyan]"))
+                for k, v in settings.data.items():
+                    console.print(f"[bold]{k}[/bold]: [yellow]{v}[/yellow]")
+                
+                key = input("\nEnter setting to change (or 'exit'): ").strip()
+                if key in settings.data:
+                    val = input(f"Enter new value for {key}: ").strip()
+                    settings.update(key, val)
+                    console.print("[green]Settings saved.[/green]")
+            else:
+                for arg in args.settings:
+                    if "=" in arg:
+                        k, v = arg.split("=", 1)
+                        settings.update(k.strip(), v.strip())
+                        console.print(f"[green]Set {k} to {v}[/green]")
+            sys.exit(0)
         else:
             display_help()
     except argparse.ArgumentError as e:
