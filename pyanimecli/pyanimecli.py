@@ -63,7 +63,7 @@ try:
 except ImportError:
     ZoneInfo = None
 
-__version__ = "1.2.8"
+__version__ = "1.2.9"
 PACKAGE_NAME = "pyanimecli"
 
 console = Console()
@@ -1388,7 +1388,7 @@ def handle_update_check():
     except Exception:
         return False
 
-def get_and_watch_episode(anime_id, ep_num_str, watch_type):
+def get_and_watch_episode(anime_id, ep_num_str, watch_type, player_override=None):
     try:
         episode_number = int(ep_num_str)
     except ValueError:
@@ -1411,7 +1411,7 @@ def get_and_watch_episode(anime_id, ep_num_str, watch_type):
     if target_episode and target_episode.get("id"):
         episode_id = target_episode["id"]
         console.print(f"Found Episode ID: [green]{episode_id}[/green]. Proceeding to watch...")
-        watch_episode(episode_id, watch_type)
+        watch_episode(episode_id, watch_type, player_override=player_override)
     else:
         console.print(f"[bold red]Could not find episode number {episode_number} for this anime.[/bold red]")
         console.print("Use the -i <anime_id> command to see a list of available episodes.")
@@ -1500,7 +1500,7 @@ def _api_request(fn):
             return None
 
 
-def watch_episode(episode_id, watch_type):
+def watch_episode(episode_id, watch_type, player_override=None):
     has_vlc = check_executable("vlc")
     has_ffplay = check_ffplay()
     
@@ -1509,6 +1509,11 @@ def watch_episode(episode_id, watch_type):
         return
 
     player = "vlc" if has_vlc else "ffplay"
+    if player_override:
+            if player_override in ["vlc", "ffplay"]:
+                player = player_override
+            else:
+                console.print(f"[yellow]Unknown player '{player_override}'. Using {player}.[/yellow]")
     is_windows = platform.system() == "Windows"
     downloader = "curl" if is_windows else "wget"
 
@@ -1707,15 +1712,14 @@ def download(episode_id_or_anime_id, ep_num_or_type, dl_type=None, output_path=N
         return get_and_download_episode(anime_id, ep_num_str, dl_type, output_path)
 
 
-def watch(episode_id_or_anime_id, ep_num_or_type, watch_type=None):
+def watch(episode_id_or_anime_id, ep_num_or_type, watch_type=None, player_override=None):
     if "$episode$" in episode_id_or_anime_id:
         episode_id = episode_id_or_anime_id
-        return watch_episode(episode_id, ep_num_or_type)
+        return watch_episode(episode_id, ep_num_or_type, player_override=player_override)
     else:
         anime_id = episode_id_or_anime_id
         ep_num_str = ep_num_or_type
-        return get_and_watch_episode(anime_id, ep_num_str, watch_type)
-
+        return get_and_watch_episode(anime_id, ep_num_str, watch_type, player_override=player_override)
 
 def version():
     return __version__
@@ -1750,7 +1754,7 @@ def display_help(command=None):
     help_data = {
         "search": ("-s, -search <query>", "Search for an anime."),
         "info": ("-i, -info <id>", "Get detailed information about an anime by its ID."),
-        "watch": ("-w, -watch <id> <ep#> <type> | <ep_id> <type>", "Watch an episode using VLC."),
+        "watch": ("-w, -watch <id> <ep#> <type> [player] | <ep_id> <type> [player]", "Watch an episode."),
         "download": ("-d, -download <id> <ep#> <type> [out] | <ep_id> <type> [out]", "Download an episode. '[out]' is an optional file path."),
         "recent": ("-re, -recent-episodes", "List recently updated episodes."),
         "top_airing": ("-ta, -top-airing", "List top airing anime."),
@@ -1786,7 +1790,7 @@ def main():
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-s', '-search', dest='search', nargs='+', help='Search for an anime.')
     group.add_argument('-i', '-info', dest='info', help='Get info for an anime by ID.')
-    group.add_argument('-w', '-watch', dest='watch', nargs='+', metavar=('ID', '...'), help='Watch an episode. See -h watch.')
+    group.add_argument('-w', '-watch', dest='watch', nargs='+', metavar=('ID', '...'), help='Watch an episode. Usage: <id> <ep#> <type> [player] or <ep_id> <type> [player]')
     group.add_argument('-d', '-download', dest='download', nargs='+', metavar=('ID', '...'), help='Download an episode. See -h download.')
     group.add_argument('-re', '-recent-episodes', dest='recent', action='store_true', help='Get recent episodes.')
     group.add_argument('-ta', '-top-airing', dest='top_airing', action='store_true', help='Get top airing anime.')
@@ -1836,17 +1840,20 @@ def main():
             info(args.info, pretty_print=True)
         elif args.watch:
             first_arg = args.watch[0]
+            player_override = None
             if "$episode$" in first_arg:
-                if len(args.watch) == 2:
-                    watch(first_arg, args.watch[1].lower())
+                if len(args.watch) >= 2:
+                    player_override = args.watch[2].lower() if len(args.watch) == 3 else None
+                    watch(first_arg, args.watch[1].lower(), player_override=player_override)
                 else:
-                    console.print("[bold red]Invalid Usage:[/bold red] Use: <episode_id> <sub|dub>")
+                    console.print("[bold red]Invalid Usage:[/bold red] Use: <episode_id> <sub|dub> [player]")
                     display_help('watch')
             else:
-                if len(args.watch) == 3:
-                    watch(first_arg, args.watch[1], args.watch[2].lower())
+                if len(args.watch) >= 3:
+                    player_override = args.watch[3].lower() if len(args.watch) == 4 else None
+                    watch(first_arg, args.watch[1], args.watch[2].lower(), player_override=player_override)
                 else:
-                    console.print("[bold red]Invalid Usage:[/bold red] Use: <anime_id> <ep_num> <sub|dub>")
+                    console.print("[bold red]Invalid Usage:[/bold red] Use: <anime_id> <ep_num> <sub|dub> [player]")
                     display_help('watch')
         elif args.download:
             args_list = args.download
