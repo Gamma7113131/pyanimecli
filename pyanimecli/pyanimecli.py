@@ -63,7 +63,7 @@ try:
 except ImportError:
     ZoneInfo = None
 
-__version__ = "1.2.7"
+__version__ = "1.2.8"
 PACKAGE_NAME = "pyanimecli"
 
 console = Console()
@@ -1347,7 +1347,6 @@ def get_and_download_episode(anime_id, ep_num_str, download_type, output_path=No
         console.print(f"[bold red]Could not find episode number {episode_number} for this anime.[/bold red]")
         console.print("Use the -i <anime_id> command to see a list of available episodes.")
 
-
 def check_for_updates():
     if semver is None:
         console.print("[yellow]Skipping update check: 'packaging' library not found. Install with 'pip install packaging'[/yellow]")
@@ -1368,6 +1367,26 @@ def check_for_updates():
     except Exception:
         console.print("[yellow]Could not check for updates.[/yellow]")
 
+def handle_update_check():
+    if semver is None:
+        no = "no"
+        return
+    try:
+        console.print("Checking for updates...")
+        url = f"https://pypi.org/pypi/{PACKAGE_NAME}/json"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        latest_version_str = response.json()["info"]["version"]
+        current_version = semver.parse(__version__)
+        latest_version = semver.parse(latest_version_str)
+        if latest_version > current_version:
+            console.print(f"\n[bold yellow]A new version is available: {latest_version_str}[/bold yellow]")
+            console.print(f"To update, run: [cyan]pyanimecli -u[/cyan]")
+            return True
+        else:
+            return False
+    except Exception:
+        return False
 
 def get_and_watch_episode(anime_id, ep_num_str, watch_type):
     try:
@@ -1482,10 +1501,14 @@ def _api_request(fn):
 
 
 def watch_episode(episode_id, watch_type):
-    if not check_executable("vlc"):
-        console.print("[bold red]VLC not found.[/bold red] Please install it from 'https://www.videolan.org/vlc' and ensure it's in your system's PATH.")
+    has_vlc = check_executable("vlc")
+    has_ffplay = check_ffplay()
+    
+    if not has_vlc and not has_ffplay:
+        console.print("[bold red]Neither VLC nor ffplay found.[/bold red] Please install one and ensure it's in your system's PATH.")
         return
 
+    player = "vlc" if has_vlc else "ffplay"
     is_windows = platform.system() == "Windows"
     downloader = "curl" if is_windows else "wget"
 
@@ -1506,65 +1529,80 @@ def watch_episode(episode_id, watch_type):
         console.print("[bold red]Incomplete stream data received.[/bold red]")
         return
 
-    vlc_command = ["vlc", stream_url]
-    if referrer:
-        vlc_command.append(f"--http-referrer={referrer}")
-
     sub_file_path = None
-    if watch_type == "sub" and data.get("subtitles"):
-        subs = data["subtitles"]
-        chosen_sub = None
+    
+    if player == "vlc":
+        vlc_command = ["vlc", stream_url]
+        if referrer:
+            vlc_command.append(f"--http-referrer={referrer}")
+        
+        if watch_type == "sub" and data.get("subtitles"):
+            subs = data["subtitles"]
+            chosen_sub = None
 
-        if len(subs) == 1:
-            chosen_sub = subs[0]
-            console.print(f"Only one subtitle available: [cyan]{chosen_sub['lang']}[/cyan]")
-        else:
-            console.print("\nAvailable subtitles:")
-            for idx, sub in enumerate(subs, start=1):
-                console.print(f"[{idx}] {sub['lang']}")
+            if len(subs) == 1:
+                chosen_sub = subs[0]
+                console.print(f"Only one subtitle available: [cyan]{chosen_sub['lang']}[/cyan]")
+            else:
+                console.print("\nAvailable subtitles:")
+                for idx, sub in enumerate(subs, start=1):
+                    console.print(f"[{idx}] {sub['lang']}")
 
-            while True:
-                try:
-                    choice = int(input("\nEnter the number of the subtitle you want: "))
-                    if 1 <= choice <= len(subs):
-                        chosen_sub = subs[choice - 1]
-                        break
+                while True:
+                    try:
+                        choice = int(input("\nEnter the number of the subtitle you want: "))
+                        if 1 <= choice <= len(subs):
+                            chosen_sub = subs[choice - 1]
+                            break
+                        else:
+                            console.print("[bold red]Invalid choice. Try again.[/bold red]")
+                    except ValueError:
+                        console.print("[bold red]Please enter a valid number.[/bold red]")
+
+            if chosen_sub:
+                sub_url = chosen_sub.get("url")
+                if sub_url:
+                    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".vtt") as tmp_file:
+                        sub_file_path = tmp_file.name
+
+                    console.print(f"Downloading subtitles ([cyan]{chosen_sub['lang']}[/cyan]) to [cyan]{sub_file_path}[/cyan]...")
+
+                    if is_windows:
+                        download_cmd = ["curl", "-s", "-L", "-o", sub_file_path, sub_url]
                     else:
-                        console.print("[bold red]Invalid choice. Try again.[/bold red]")
-                except ValueError:
-                    console.print("[bold red]Please enter a valid number.[/bold red]")
+                        download_cmd = ["wget", "-q", "-O", sub_file_path, sub_url]
 
-        if chosen_sub:
-            sub_url = chosen_sub.get("url")
-            if sub_url:
-                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".vtt") as tmp_file:
-                    sub_file_path = tmp_file.name
+                    try:
+                        subprocess.run(download_cmd, check=True)
+                        vlc_command.append(f"--sub-file={sub_file_path}")
+                        console.print("[green]Subtitle download complete.[/green]")
+                    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                        console.print(f"[bold red]Failed to download subtitles:[/bold red] {e}")
+                        sub_file_path = None
 
-                console.print(f"Downloading subtitles ([cyan]{chosen_sub['lang']}[/cyan]) to [cyan]{sub_file_path}[/cyan]...")
+        command_str = ' '.join(f'"{c}"' if ' ' in c else c for c in vlc_command)
+        console.print(f"\n[bold]Executing command:[/bold]\n[yellow]{command_str}[/yellow]\n")
 
-                if is_windows:
-                    download_cmd = ["curl", "-s", "-L", "-o", sub_file_path, sub_url]
-                else:
-                    download_cmd = ["wget", "-q", "-O", sub_file_path, sub_url]
+        try:
+            subprocess.run(vlc_command)
+        except Exception as e:
+            console.print(f"[bold red]Failed to launch VLC:[/bold red] {e}")
+        finally:
+            if sub_file_path and os.path.exists(sub_file_path):
+                os.remove(sub_file_path)
+    
+    else:
+        ffplay_command = ["ffplay", "-autoexit", stream_url]
+        
+        if watch_type == "sub" and data.get("subtitles"):
+            console.print("[yellow]Note: ffplay has limited subtitle support. Consider installing VLC for better subtitle handling.[/yellow]")
 
-                try:
-                    subprocess.run(download_cmd, check=True)
-                    vlc_command.append(f"--sub-file={sub_file_path}")
-                    console.print("[green]Subtitle download complete.[/green]")
-                except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                    console.print(f"[bold red]Failed to download subtitles:[/bold red] {e}")
-                    sub_file_path = None
+        console.print(f"\n[bold]Playing with ffplay...[/bold]\n")
 
-    command_str = ' '.join(f'"{c}"' if ' ' in c else c for c in vlc_command)
-    console.print(f"\n[bold]Executing command:[/bold]\n[yellow]{command_str}[/yellow]\n")
-
-    try:
-        subprocess.run(vlc_command)
-    except Exception as e:
-        console.print(f"[bold red]Failed to launch VLC:[/bold red] {e}")
-    finally:
-        if sub_file_path and os.path.exists(sub_file_path):
-            os.remove(sub_file_path)
+        try:
+            subprocess.run(ffplay_command)
+        except Exception as e:
+            console.print(f"[bold red]Failed to launch ffplay:[/bold red] {e}")
 
 
 def search(query, page=1, pretty_print=False):
@@ -1762,6 +1800,7 @@ def main():
     group.add_argument('-tr', '-trailer', dest='trailer', nargs='+', help='Get trailer. Usage: -tr <anime_id> [play]')
     group.add_argument('-h', '-help', dest='help', nargs='?', const='all', help='Show help message.')
     group.add_argument('-v', '-version', dest='version', action='store_true', help='Show script version.')
+    group.add_argument('-u', '-update', dest='update', action='store_true', help='Update pyanimecli to the latest version.')
 
     parser.add_argument('-p', '-page', dest='page', type=int, default=1, help='Page number for paginated results.')
     parser.add_argument('--settings', nargs='*', help='Open settings menu or set key="value"')
@@ -1855,6 +1894,10 @@ def main():
             if len(args.trailer) > 1 and args.trailer[1].lower() == "play":
                 play = True
             trailer(anime_id, play=play, pretty_print=True)
+        elif args.update:
+            console.print("Attempting to update pyanimecli...")
+            result = subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", PACKAGE_NAME])
+            sys.exit(result.returncode)
         elif args.settings is not None:
             if len(args.settings) == 0:
                 console.print(Panel("[bold cyan]pyanimecli Configuration[/bold cyan]"))

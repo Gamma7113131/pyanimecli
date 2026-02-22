@@ -1,14 +1,14 @@
 [project]
 name = "pyanimecli"
-version = "1.2.7"
+version = "1.2.8"
 description = "A powerful command-line interface for searching, getting info, and watching anime directly from your terminal."
 authors = [{name="Gamma", email="Gamma.scratch@gmail.com"}]
 license = {text = "MIT"}
 readme = "README.md"
-dependencies = ["requests", "rich", "pym3u8downloader", "packaging", "tqdm", "rich-pixels", "pillow"]
+dependencies = ["requests", "rich", "pym3u8downloader", "packaging", "tqdm", "rich-pixels", "pillow", "pycryptodome", "beautifulsoup4", "httpx"]
 
 [project.urls]
-Homepage = "https://github.com/princevegetadev/pyanimecli"
+Homepage = "https://princevegetadev.github.io/pyanimecli"
 Source = "https://github.com/princevegetadev/pyanimecli"
 Tracker = "https://github.com/princevegetadev/pyanimecli/issues"
 
