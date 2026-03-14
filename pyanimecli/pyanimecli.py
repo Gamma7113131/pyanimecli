@@ -63,7 +63,7 @@ try:
 except ImportError:
     ZoneInfo = None
 
-__version__ = "1.2.9"
+__version__ = "1.3"
 PACKAGE_NAME = "pyanimecli"
 
 console = Console()
@@ -221,7 +221,7 @@ def _decrypt_sources_sync_fallback(full_url: str) -> List[Dict]:
 
 
 async def _get_client_key(embed_url: str) -> Optional[str]:
-    headers = {"Referer": "https://hianime.to", "User-Agent": _BROWSER_UA}
+    headers = {"Referer": "https://aniwatchtv.to", "User-Agent": _BROWSER_UA}
     async with httpx.AsyncClient() as client:
         for _ in range(5):
             try:
@@ -359,7 +359,7 @@ class YumaAPI:
     }
 
     def __init__(self):
-        self._base = 'https://hianime.to'
+        self._base = 'https://aniwatchtv.to'
         self._session = requests.Session()
         self._session.headers.update({
             'User-Agent': _BROWSER_UA,
